@@ -1,0 +1,312 @@
+<script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { apiClient } from '../api/client'
+
+const router = useRouter()
+const { t } = useI18n()
+
+const form = ref({
+  name: '',
+  url: '',
+  type: 'LOAD',
+  vus: 10,
+  duration: '30s',
+  template: 'none'
+})
+
+const templates = [
+  { value: 'none', label: 'None (Manual)', desc: 'Write your own k6 script or use AI generation' },
+  { value: 'ecommerce', label: 'E-commerce', desc: 'Shopping flow with cart and checkout simulation' },
+  { value: 'saas', label: 'SaaS Platform', desc: 'B2B workflow with auth and dashboard operations' },
+  { value: 'api', label: 'REST API', desc: 'Full CRUD operations with search and filtering' }
+]
+
+const testTypes = computed(() => [
+  { value: 'LOAD', label: t('testCreate.types.LOAD'), desc: t('testCreate.typeDescriptions.LOAD'), icon: 'M13 10V3L4 14h7v7l9-11h-7z' },
+  { value: 'STRESS', label: t('testCreate.types.STRESS'), desc: t('testCreate.typeDescriptions.STRESS'), icon: 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { value: 'SPIKE', label: t('testCreate.types.SPIKE'), desc: t('testCreate.typeDescriptions.SPIKE'), icon: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6' },
+  { value: 'SOAK', label: t('testCreate.types.SOAK'), desc: t('testCreate.typeDescriptions.SOAK'), icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' }
+])
+
+const isGenerating = ref(false)
+const error = ref('')
+
+const handleSubmit = async () => {
+  isGenerating.value = true
+  error.value = ''
+
+  try {
+    // Create test via API
+    const test = await apiClient.createTest({
+      name: form.value.name,
+      url: form.value.url,
+      testType: form.value.type as 'LOAD' | 'STRESS' | 'SPIKE' | 'SOAK',
+      vus: form.value.vus,
+      duration: form.value.duration,
+      template: form.value.template !== 'none' ? form.value.template : undefined
+    })
+
+    console.log('Test created:', test)
+
+    // Navigate to test list
+    router.push('/tests')
+  } catch (err) {
+    console.error('Failed to create test:', err)
+    error.value = err instanceof Error ? err.message : 'Failed to create test'
+  } finally {
+    isGenerating.value = false
+  }
+}
+</script>
+
+<template>
+  <div class="px-4 sm:px-0">
+    <!-- Header -->
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-dark-text-primary">{{ t('testCreate.title') }}</h1>
+      <p class="mt-2 text-gray-600 dark:text-dark-text-tertiary font-mono text-sm">
+        Configure and deploy AI-powered performance tests
+      </p>
+    </div>
+
+    <!-- Form -->
+    <form @submit.prevent="handleSubmit" class="space-y-6">
+      <!-- Test Configuration Card -->
+      <div class="bg-white dark:bg-dark-bg-secondary border border-gray-200 dark:border-dark-border-primary shadow-sm dark:shadow-dark-md rounded-xl overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-dark-border-primary bg-gray-50 dark:bg-dark-bg-tertiary">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-dark-text-primary flex items-center">
+            <svg class="w-5 h-5 mr-2 text-blue-600 dark:text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            {{ t('testCreate.configuration') }}
+          </h2>
+        </div>
+
+        <div class="p-6 space-y-6">
+          <!-- Test Name -->
+          <div>
+            <label for="name" class="block text-sm font-semibold text-gray-700 dark:text-dark-text-secondary mb-2">
+              {{ t('testCreate.testName') }} <span class="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="name"
+              v-model="form.name"
+              required
+              class="block w-full px-4 py-3 bg-white dark:bg-dark-bg-tertiary border border-gray-300 dark:border-dark-border-secondary rounded-lg text-gray-900 dark:text-dark-text-primary placeholder-gray-400 dark:placeholder-dark-text-disabled focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all font-mono text-sm"
+              :placeholder="t('testCreate.testNamePlaceholder')"
+            />
+          </div>
+
+          <!-- Target URL -->
+          <div>
+            <label for="url" class="block text-sm font-semibold text-gray-700 dark:text-dark-text-secondary mb-2">
+              {{ t('testCreate.targetUrl') }} <span class="text-red-500">*</span>
+            </label>
+            <div class="relative">
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg class="h-5 w-5 text-gray-400 dark:text-dark-text-disabled" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                </svg>
+              </div>
+              <input
+                type="url"
+                id="url"
+                v-model="form.url"
+                required
+                class="block w-full pl-10 pr-4 py-3 bg-white dark:bg-dark-bg-tertiary border border-gray-300 dark:border-dark-border-secondary rounded-lg text-gray-900 dark:text-dark-text-primary placeholder-gray-400 dark:placeholder-dark-text-disabled focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all font-mono text-sm"
+                placeholder="https://api.example.com"
+              />
+            </div>
+          </div>
+
+          <!-- Template Selection -->
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 dark:text-dark-text-secondary mb-3">
+              Test Template
+            </label>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <button
+                v-for="template in templates"
+                :key="template.value"
+                type="button"
+                @click="form.template = template.value"
+                :class="[
+                  'relative p-4 border-2 rounded-lg text-left transition-all',
+                  form.template === template.value
+                    ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20'
+                    : 'border-gray-200 dark:border-dark-border-secondary bg-white dark:bg-dark-bg-tertiary hover:border-gray-300 dark:hover:border-dark-border-primary'
+                ]"
+              >
+                <div class="flex items-start justify-between">
+                  <div class="flex-1">
+                    <h4 class="text-sm font-semibold text-gray-900 dark:text-dark-text-primary mb-1">
+                      {{ template.label }}
+                    </h4>
+                    <p class="text-xs text-gray-600 dark:text-dark-text-tertiary">
+                      {{ template.desc }}
+                    </p>
+                  </div>
+                  <div
+                    v-if="form.template === template.value"
+                    class="flex-shrink-0 ml-2"
+                  >
+                    <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                    </svg>
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Test Type Selection -->
+      <div class="bg-white dark:bg-dark-bg-secondary border border-gray-200 dark:border-dark-border-primary shadow-sm dark:shadow-dark-md rounded-xl overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 dark:border-dark-border-primary bg-gray-50 dark:bg-dark-bg-tertiary">
+          <h2 class="text-lg font-semibold text-gray-900 dark:text-dark-text-primary flex items-center">
+            <svg class="w-5 h-5 mr-2 text-cyan-600 dark:text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            Test Type & Parameters
+          </h2>
+        </div>
+
+        <div class="p-6 space-y-6">
+          <!-- Test Type Grid -->
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 dark:text-dark-text-secondary mb-3">
+              Test Type <span class="text-red-500">*</span>
+            </label>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+              <button
+                v-for="type in testTypes"
+                :key="type.value"
+                type="button"
+                @click="form.type = type.value"
+                :class="[
+                  'relative p-4 border-2 rounded-lg transition-all',
+                  form.type === type.value
+                    ? 'border-blue-500 dark:border-blue-400 bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20'
+                    : 'border-gray-200 dark:border-dark-border-secondary bg-white dark:bg-dark-bg-tertiary hover:border-gray-300 dark:hover:border-dark-border-primary'
+                ]"
+              >
+                <div class="text-center">
+                  <div :class="['mx-auto w-10 h-10 rounded-lg flex items-center justify-center mb-2', form.type === type.value ? 'bg-gradient-to-br from-blue-600 to-cyan-600' : 'bg-gray-100 dark:bg-dark-bg-elevated']">
+                    <svg :class="['w-5 h-5', form.type === type.value ? 'text-white' : 'text-gray-600 dark:text-dark-text-secondary']" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="type.icon" />
+                    </svg>
+                  </div>
+                  <h4 class="text-sm font-semibold text-gray-900 dark:text-dark-text-primary mb-1">
+                    {{ type.label }}
+                  </h4>
+                  <p class="text-xs text-gray-600 dark:text-dark-text-tertiary">
+                    {{ type.desc }}
+                  </p>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <!-- VUs and Duration -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Virtual Users -->
+            <div>
+              <label for="vus" class="block text-sm font-semibold text-gray-700 dark:text-dark-text-secondary mb-2">
+                Virtual Users (VUs) <span class="text-red-500">*</span>
+              </label>
+              <input
+                type="number"
+                id="vus"
+                v-model.number="form.vus"
+                min="1"
+                max="10000"
+                required
+                class="block w-full px-4 py-3 bg-white dark:bg-dark-bg-tertiary border border-gray-300 dark:border-dark-border-secondary rounded-lg text-gray-900 dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all font-mono text-sm"
+              />
+              <p class="mt-2 text-xs text-gray-500 dark:text-dark-text-disabled font-mono">
+                Concurrent simulated users (1-10,000)
+              </p>
+            </div>
+
+            <!-- Duration -->
+            <div>
+              <label for="duration" class="block text-sm font-semibold text-gray-700 dark:text-dark-text-secondary mb-2">
+                Test Duration <span class="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                id="duration"
+                v-model="form.duration"
+                required
+                pattern="[0-9]+(s|m|h)"
+                class="block w-full px-4 py-3 bg-white dark:bg-dark-bg-tertiary border border-gray-300 dark:border-dark-border-secondary rounded-lg text-gray-900 dark:text-dark-text-primary focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent transition-all font-mono text-sm"
+                placeholder="30s, 5m, 1h"
+              />
+              <p class="mt-2 text-xs text-gray-500 dark:text-dark-text-disabled font-mono">
+                Format: 30s (seconds), 5m (minutes), 1h (hours)
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="flex items-center justify-end space-x-4 pt-4">
+        <button
+          type="button"
+          @click="router.push('/tests')"
+          class="px-6 py-3 border-2 border-gray-300 dark:border-dark-border-secondary rounded-lg text-sm font-semibold text-gray-700 dark:text-dark-text-secondary bg-white dark:bg-dark-bg-secondary hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary transition-all"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          :disabled="isGenerating"
+          class="inline-flex items-center px-6 py-3 border border-transparent rounded-lg shadow-sm text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-dark-bg-primary disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+        >
+          <svg
+            v-if="isGenerating"
+            class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <svg v-else class="-ml-1 mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          {{ isGenerating ? 'Generating Test...' : 'Create & Deploy Test' }}
+        </button>
+      </div>
+    </form>
+
+    <!-- AI Info Banner -->
+    <div class="mt-6 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl p-1 shadow-lg dark:shadow-dark-xl">
+      <div class="bg-white dark:bg-dark-bg-secondary rounded-lg p-6">
+        <div class="flex items-start">
+          <div class="flex-shrink-0">
+            <div class="p-3 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg">
+              <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+            </div>
+          </div>
+          <div class="ml-4 flex-1">
+            <h3 class="text-base font-semibold text-gray-900 dark:text-dark-text-primary mb-2">
+              AI-Powered Test Generation
+            </h3>
+            <p class="text-sm text-gray-600 dark:text-dark-text-tertiary">
+              Smart-Turbo leverages <span class="font-semibold text-purple-600 dark:text-purple-400">Claude AI</span> to automatically generate optimized k6 scripts based on your target URL and test parameters. The AI analyzes your application architecture and creates realistic load patterns with proper checks and thresholds.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>

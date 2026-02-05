@@ -1,0 +1,338 @@
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { RouterLink } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { apiClient } from '../api/client'
+import type { Test } from '../api/client'
+
+const { t, locale } = useI18n()
+
+const stats = ref({
+  totalTests: 0,
+  successRate: 0,
+  avgResponseTime: 0,
+  testsThisWeek: 0
+})
+
+const recentActivity = ref<Array<{
+  id: number
+  type: string
+  name: string
+  time: string
+  status: string
+}>>([])
+
+const loading = ref(true)
+
+function getRelativeTime(dateStr: string): string {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  if (locale.value === 'ko') {
+    if (diffMins < 1) return '방금 전'
+    if (diffMins < 60) return `${diffMins}분 전`
+    if (diffHours < 24) return `${diffHours}시간 전`
+    return `${diffDays}일 전`
+  } else {
+    if (diffMins < 1) return 'just now'
+    if (diffMins < 60) return `${diffMins} min ago`
+    if (diffHours < 24) return `${diffHours} hr ago`
+    return `${diffDays} days ago`
+  }
+}
+
+function mapTestToActivity(test: Test) {
+  return {
+    id: test.id,
+    type: test.status === 'COMPLETED' ? 'test_completed' : test.status === 'RUNNING' ? 'test_started' : 'test_pending',
+    name: test.name,
+    time: getRelativeTime(test.updatedAt),
+    status: test.status === 'COMPLETED' ? 'success' : test.status === 'RUNNING' ? 'running' : 'pending'
+  }
+}
+
+onMounted(async () => {
+  try {
+    loading.value = true
+
+    // Fetch dashboard stats
+    const dashboardStats = await apiClient.getDashboardStats()
+    stats.value = dashboardStats
+
+    // Fetch recent tests for activity
+    const tests = await apiClient.getAllTests()
+    recentActivity.value = tests
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, 5)
+      .map(mapTestToActivity)
+
+  } catch (error) {
+    console.error('Failed to fetch dashboard data:', error)
+    // Show error message to user
+  } finally {
+    loading.value = false
+  }
+})
+</script>
+
+<template>
+  <div class="px-4 sm:px-0">
+    <!-- Header with Gradient -->
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-dark-text-primary mb-2">
+        {{ t('dashboard.title') }}
+      </h1>
+      <p class="text-gray-600 dark:text-dark-text-tertiary font-mono text-sm">
+        Real-time load testing analytics & insights
+      </p>
+    </div>
+
+    <!-- Professional Stats Grid -->
+    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+      <!-- Total Tests -->
+      <div class="relative group">
+        <div class="absolute inset-0 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl blur opacity-25 group-hover:opacity-40 transition-opacity"></div>
+        <div class="relative bg-white dark:bg-dark-bg-secondary border border-gray-200 dark:border-dark-border-primary rounded-xl p-6 hover:shadow-lg dark:hover:shadow-dark-lg transition-all">
+          <div class="flex items-center justify-between mb-4">
+            <div class="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg">
+              <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <div class="text-xs font-mono text-gray-400 dark:text-dark-text-disabled">ALL-TIME</div>
+          </div>
+          <div class="space-y-1">
+            <div class="text-3xl font-bold text-gray-900 dark:text-dark-text-primary font-mono">
+              {{ stats.totalTests }}
+            </div>
+            <div class="text-sm font-medium text-gray-500 dark:text-dark-text-tertiary">
+              {{ t('dashboard.totalTests') }}
+            </div>
+          </div>
+          <div class="mt-4 flex items-center text-xs text-green-600 dark:text-green-400">
+            <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clip-rule="evenodd" />
+            </svg>
+            <span class="font-semibold">+12%</span>
+            <span class="ml-1 text-gray-500 dark:text-dark-text-disabled">vs last month</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Success Rate -->
+      <div class="relative group">
+        <div class="absolute inset-0 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl blur opacity-25 group-hover:opacity-40 transition-opacity"></div>
+        <div class="relative bg-white dark:bg-dark-bg-secondary border border-gray-200 dark:border-dark-border-primary rounded-xl p-6 hover:shadow-lg dark:hover:shadow-dark-lg transition-all">
+          <div class="flex items-center justify-between mb-4">
+            <div class="p-3 bg-gradient-to-br from-green-500 to-green-600 rounded-lg shadow-lg">
+              <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div class="text-xs font-mono text-gray-400 dark:text-dark-text-disabled">RELIABILITY</div>
+          </div>
+          <div class="space-y-1">
+            <div class="text-3xl font-bold text-gray-900 dark:text-dark-text-primary font-mono">
+              {{ stats.successRate }}<span class="text-xl">%</span>
+            </div>
+            <div class="text-sm font-medium text-gray-500 dark:text-dark-text-tertiary">
+              {{ t('dashboard.successRate') }}
+            </div>
+          </div>
+          <div class="mt-4">
+            <div class="flex items-center justify-between text-xs mb-1">
+              <span class="text-gray-500 dark:text-dark-text-disabled">Target: 95%</span>
+              <span class="text-green-600 dark:text-green-400 font-semibold">+3.5%</span>
+            </div>
+            <div class="w-full bg-gray-200 dark:bg-dark-bg-elevated rounded-full h-1.5">
+              <div class="bg-gradient-to-r from-green-500 to-emerald-500 h-1.5 rounded-full" :style="{ width: stats.successRate + '%' }"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Avg Response Time -->
+      <div class="relative group">
+        <div class="absolute inset-0 bg-gradient-to-r from-cyan-500 to-blue-500 rounded-xl blur opacity-25 group-hover:opacity-40 transition-opacity"></div>
+        <div class="relative bg-white dark:bg-dark-bg-secondary border border-gray-200 dark:border-dark-border-primary rounded-xl p-6 hover:shadow-lg dark:hover:shadow-dark-lg transition-all">
+          <div class="flex items-center justify-between mb-4">
+            <div class="p-3 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-lg shadow-lg">
+              <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <div class="text-xs font-mono text-gray-400 dark:text-dark-text-disabled">PERFORMANCE</div>
+          </div>
+          <div class="space-y-1">
+            <div class="text-3xl font-bold text-gray-900 dark:text-dark-text-primary font-mono">
+              {{ stats.avgResponseTime }}<span class="text-xl">ms</span>
+            </div>
+            <div class="text-sm font-medium text-gray-500 dark:text-dark-text-tertiary">
+              {{ t('dashboard.avgResponseTime') }}
+            </div>
+          </div>
+          <div class="mt-4 flex items-center text-xs text-cyan-600 dark:text-cyan-400">
+            <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M16.707 10.293a1 1 0 010 1.414l-6 6a1 1 0 01-1.414 0l-6-6a1 1 0 111.414-1.414L9 14.586V3a1 1 0 012 0v11.586l4.293-4.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+            </svg>
+            <span class="font-semibold">-18ms</span>
+            <span class="ml-1 text-gray-500 dark:text-dark-text-disabled">improvement</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tests This Week -->
+      <div class="relative group">
+        <div class="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl blur opacity-25 group-hover:opacity-40 transition-opacity"></div>
+        <div class="relative bg-white dark:bg-dark-bg-secondary border border-gray-200 dark:border-dark-border-primary rounded-xl p-6 hover:shadow-lg dark:hover:shadow-dark-lg transition-all">
+          <div class="flex items-center justify-between mb-4">
+            <div class="p-3 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg shadow-lg">
+              <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <div class="text-xs font-mono text-gray-400 dark:text-dark-text-disabled">THIS WEEK</div>
+          </div>
+          <div class="space-y-1">
+            <div class="text-3xl font-bold text-gray-900 dark:text-dark-text-primary font-mono">
+              {{ stats.testsThisWeek }}
+            </div>
+            <div class="text-sm font-medium text-gray-500 dark:text-dark-text-tertiary">
+              Tests Executed
+            </div>
+          </div>
+          <div class="mt-4 flex items-center text-xs text-purple-600 dark:text-purple-400">
+            <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+            </svg>
+            <span class="font-semibold">7 days</span>
+            <span class="ml-1 text-gray-500 dark:text-dark-text-disabled">avg: 3.3/day</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+      <!-- Quick Actions -->
+      <div class="lg:col-span-2">
+        <div class="bg-white dark:bg-dark-bg-secondary border border-gray-200 dark:border-dark-border-primary rounded-xl p-6 shadow-sm dark:shadow-dark-md">
+          <div class="flex items-center justify-between mb-6">
+            <h2 class="text-lg font-bold text-gray-900 dark:text-dark-text-primary">Quick Actions</h2>
+            <div class="text-xs font-mono text-gray-400 dark:text-dark-text-disabled">SHORTCUTS</div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <RouterLink
+              to="/tests/new"
+              class="group relative overflow-hidden border-2 border-dashed border-gray-300 dark:border-dark-border-secondary rounded-xl p-6 hover:border-blue-500 dark:hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all"
+            >
+              <div class="flex items-start space-x-4">
+                <div class="p-3 bg-gradient-to-br from-blue-500 to-blue-600 rounded-lg shadow-lg group-hover:scale-110 transition-transform">
+                  <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                  </svg>
+                </div>
+                <div class="flex-1">
+                  <h3 class="font-semibold text-gray-900 dark:text-dark-text-primary group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                    {{ t('nav.createTest') }}
+                  </h3>
+                  <p class="text-sm text-gray-600 dark:text-dark-text-tertiary mt-1">
+                    AI-powered test script generation
+                  </p>
+                  <div class="mt-2 text-xs font-mono text-gray-400 dark:text-dark-text-disabled">
+                    → Generate → Execute
+                  </div>
+                </div>
+              </div>
+            </RouterLink>
+
+            <RouterLink
+              to="/tests"
+              class="group relative overflow-hidden border-2 border-dashed border-gray-300 dark:border-dark-border-secondary rounded-xl p-6 hover:border-cyan-500 dark:hover:border-cyan-400 hover:bg-cyan-50 dark:hover:bg-cyan-900/10 transition-all"
+            >
+              <div class="flex items-start space-x-4">
+                <div class="p-3 bg-gradient-to-br from-cyan-500 to-cyan-600 rounded-lg shadow-lg group-hover:scale-110 transition-transform">
+                  <svg class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                </div>
+                <div class="flex-1">
+                  <h3 class="font-semibold text-gray-900 dark:text-dark-text-primary group-hover:text-cyan-600 dark:group-hover:text-cyan-400">
+                    {{ t('dashboard.viewAll') }}
+                  </h3>
+                  <p class="text-sm text-gray-600 dark:text-dark-text-tertiary mt-1">
+                    Browse test history & results
+                  </p>
+                  <div class="mt-2 text-xs font-mono text-gray-400 dark:text-dark-text-disabled">
+                    {{ stats.totalTests }} {{ t('dashboard.totalTests').toLowerCase() }}
+                  </div>
+                </div>
+              </div>
+            </RouterLink>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="bg-white dark:bg-dark-bg-secondary border border-gray-200 dark:border-dark-border-primary rounded-xl p-6 shadow-sm dark:shadow-dark-md">
+        <div class="flex items-center justify-between mb-6">
+          <h2 class="text-lg font-bold text-gray-900 dark:text-dark-text-primary">Recent Activity</h2>
+          <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+        </div>
+
+        <div class="space-y-4">
+          <div
+            v-for="activity in recentActivity"
+            :key="activity.id"
+            class="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary transition-colors"
+          >
+            <div
+              :class="[
+                'flex-shrink-0 w-2 h-2 mt-2 rounded-full',
+                activity.status === 'success' ? 'bg-green-500' : activity.status === 'running' ? 'bg-blue-500 animate-pulse' : 'bg-gray-400'
+              ]"
+            ></div>
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-medium text-gray-900 dark:text-dark-text-primary truncate">
+                {{ activity.name }}
+              </p>
+              <p class="text-xs text-gray-500 dark:text-dark-text-tertiary font-mono">
+                {{ activity.time }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- System Status -->
+    <div class="bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl p-1 shadow-lg dark:shadow-dark-xl">
+      <div class="bg-white dark:bg-dark-bg-secondary rounded-lg p-6">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-2">
+              <div class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
+              <span class="text-sm font-semibold text-gray-900 dark:text-dark-text-primary">
+                All Systems Operational
+              </span>
+            </div>
+            <div class="hidden sm:flex items-center space-x-4 text-xs text-gray-600 dark:text-dark-text-tertiary font-mono">
+              <span>API: <span class="text-green-600 dark:text-green-400 font-semibold">Online</span></span>
+              <span>•</span>
+              <span>k6: <span class="text-green-600 dark:text-green-400 font-semibold">Ready</span></span>
+              <span>•</span>
+              <span>AI: <span class="text-green-600 dark:text-green-400 font-semibold">Active</span></span>
+            </div>
+          </div>
+          <div class="text-xs text-gray-500 dark:text-dark-text-disabled font-mono">
+            Uptime: 99.98%
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>

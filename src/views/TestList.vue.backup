@@ -1,0 +1,287 @@
+<script setup lang="ts">
+import { ref, onMounted, computed } from 'vue'
+import { RouterLink } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { apiClient, type Test } from '../api/client'
+
+const { t, locale } = useI18n()
+const tests = ref<Test[]>([])
+const filter = ref('all')
+const loading = ref(true)
+
+const filteredTests = computed(() => {
+  if (filter.value === 'all') return tests.value
+  return tests.value.filter(t => t.status.toLowerCase() === filter.value)
+})
+
+function formatDateTime(dateStr: string): string {
+  const date = new Date(dateStr)
+  const localeString = locale.value === 'ko' ? 'ko-KR' : 'en-US'
+  return date.toLocaleString(localeString, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+onMounted(async () => {
+  try {
+    loading.value = true
+    tests.value = await apiClient.getAllTests()
+  } catch (error) {
+    console.error('Failed to fetch tests:', error)
+  } finally {
+    loading.value = false
+  }
+})
+
+const getStatusConfig = (status: string) => {
+  const statusUpper = status.toUpperCase()
+  switch (statusUpper) {
+    case 'COMPLETED':
+      return {
+        color: 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800',
+        icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z',
+        text: t('status.COMPLETED')
+      }
+    case 'RUNNING':
+      return {
+        color: 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800',
+        icon: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15',
+        text: t('status.RUNNING')
+      }
+    case 'FAILED':
+      return {
+        color: 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800',
+        icon: 'M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z',
+        text: t('status.FAILED')
+      }
+    case 'PENDING':
+      return {
+        color: 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800',
+        icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z',
+        text: t('status.PENDING')
+      }
+    default:
+      return {
+        color: 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-800',
+        icon: '',
+        text: status
+      }
+  }
+}
+
+const getTypeIcon = (type: string) => {
+  const typeLower = type.toLowerCase()
+  switch (typeLower) {
+    case 'load':
+      return 'M13 10V3L4 14h7v7l9-11h-7z'
+    case 'stress':
+      return 'M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
+    case 'spike':
+      return 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6'
+    case 'soak':
+      return 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'
+    default:
+      return 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2'
+  }
+}
+
+const getTypeText = (type: string) => {
+  const typeKey = `testCreate.types.${type}` as const
+  return t(typeKey)
+}
+</script>
+
+<template>
+  <div class="px-4 sm:px-0">
+    <!-- Header -->
+    <div class="mb-6 flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900 dark:text-dark-text-primary">{{ t('testList.title') }}</h1>
+        <p class="mt-2 text-gray-600 dark:text-dark-text-tertiary font-mono text-sm">
+          Monitor and analyze load test executions
+        </p>
+      </div>
+      <RouterLink
+        to="/tests/new"
+        class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-dark-bg-primary transition-all"
+      >
+        <svg class="-ml-1 mr-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+        {{ t('testList.createNew') }}
+      </RouterLink>
+    </div>
+
+    <!-- Filters -->
+    <div class="mb-6 flex items-center space-x-2">
+      <button
+        v-for="f in ['all', 'completed', 'running', 'failed']"
+        :key="f"
+        @click="filter = f"
+        :class="[
+          'px-4 py-2 text-sm font-medium rounded-lg transition-all',
+          filter === f
+            ? 'bg-blue-600 text-white shadow-lg dark:shadow-dark-lg'
+            : 'bg-white dark:bg-dark-bg-secondary text-gray-700 dark:text-dark-text-secondary border border-gray-200 dark:border-dark-border-primary hover:border-blue-500 dark:hover:border-blue-400'
+        ]"
+      >
+        {{ f.charAt(0).toUpperCase() + f.slice(1) }}
+      </button>
+    </div>
+
+    <!-- Tests Table -->
+    <div class="bg-white dark:bg-dark-bg-secondary border border-gray-200 dark:border-dark-border-primary shadow-sm dark:shadow-dark-md rounded-xl overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-dark-border-primary">
+          <thead class="bg-gray-50 dark:bg-dark-bg-tertiary">
+            <tr>
+              <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-dark-text-tertiary uppercase tracking-wider">
+                {{ t('testList.name') }}
+              </th>
+              <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-dark-text-tertiary uppercase tracking-wider">
+                Target URL
+              </th>
+              <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-dark-text-tertiary uppercase tracking-wider">
+                {{ t('testList.type') }}
+              </th>
+              <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-dark-text-tertiary uppercase tracking-wider">
+                {{ t('testList.status') }}
+              </th>
+              <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-dark-text-tertiary uppercase tracking-wider">
+                {{ t('testList.created') }}
+              </th>
+              <th scope="col" class="px-6 py-4 text-left text-xs font-semibold text-gray-600 dark:text-dark-text-tertiary uppercase tracking-wider">
+                {{ t('testResults.duration') }}
+              </th>
+              <th scope="col" class="relative px-6 py-4">
+                <span class="sr-only">{{ t('testList.actions') }}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-200 dark:divide-dark-border-primary">
+            <tr
+              v-for="test in filteredTests"
+              :key="test.id"
+              class="hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary transition-colors"
+            >
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="flex items-center">
+                  <div class="flex-shrink-0 h-10 w-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
+                    <svg class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" :d="getTypeIcon(test.testType)" />
+                    </svg>
+                  </div>
+                  <div class="ml-4">
+                    <div class="text-sm font-semibold text-gray-900 dark:text-dark-text-primary">
+                      {{ test.name }}
+                    </div>
+                    <div class="text-xs text-gray-500 dark:text-dark-text-tertiary font-mono">
+                      ID: {{ test.id }}
+                    </div>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-4">
+                <div class="text-sm text-gray-600 dark:text-dark-text-secondary font-mono truncate max-w-xs">
+                  {{ test.url }}
+                </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 dark:bg-dark-bg-elevated text-gray-800 dark:text-dark-text-secondary border border-gray-200 dark:border-dark-border-secondary">
+                  {{ getTypeText(test.testType) }}
+                </span>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <span
+                  :class="[
+                    'inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border',
+                    getStatusConfig(test.status).color
+                  ]"
+                >
+                  <svg
+                    class="mr-1.5 h-3 w-3"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      :d="getStatusConfig(test.status).icon"
+                    />
+                  </svg>
+                  {{ getStatusConfig(test.status).text }}
+                </span>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-dark-text-secondary font-mono">
+                {{ formatDateTime(test.createdAt) }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-dark-text-secondary font-mono">
+                {{ test.duration }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                <RouterLink
+                  :to="`/results/${test.id}`"
+                  class="inline-flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 font-semibold"
+                >
+                  View Results
+                  <svg class="ml-1 w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                  </svg>
+                </RouterLink>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Empty State -->
+      <div v-if="filteredTests.length === 0" class="text-center py-16">
+        <div class="inline-flex items-center justify-center w-16 h-16 bg-gray-100 dark:bg-dark-bg-elevated rounded-full mb-4">
+          <svg class="h-8 w-8 text-gray-400 dark:text-dark-text-disabled" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-dark-text-primary mb-2">No Tests Found</h3>
+        <p class="text-gray-600 dark:text-dark-text-tertiary mb-6">
+          Create your first load test to get started
+        </p>
+        <RouterLink
+          to="/tests/new"
+          class="inline-flex items-center px-6 py-3 border border-transparent shadow-sm text-base font-medium rounded-lg text-white bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700"
+        >
+          <svg class="-ml-1 mr-3 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          Create New Test
+        </RouterLink>
+      </div>
+    </div>
+
+    <!-- Pagination (TODO) -->
+    <div class="mt-6 flex items-center justify-between">
+      <div class="text-sm text-gray-600 dark:text-dark-text-tertiary font-mono">
+        Showing <span class="font-semibold text-gray-900 dark:text-dark-text-primary">{{ filteredTests.length }}</span> tests
+      </div>
+      <div class="flex items-center space-x-2">
+        <button
+          class="px-3 py-2 text-sm font-medium text-gray-700 dark:text-dark-text-secondary bg-white dark:bg-dark-bg-secondary border border-gray-200 dark:border-dark-border-primary rounded-lg hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary disabled:opacity-50"
+          disabled
+        >
+          Previous
+        </button>
+        <button
+          class="px-3 py-2 text-sm font-medium text-gray-700 dark:text-dark-text-secondary bg-white dark:bg-dark-bg-secondary border border-gray-200 dark:border-dark-border-primary rounded-lg hover:bg-gray-50 dark:hover:bg-dark-bg-tertiary disabled:opacity-50"
+          disabled
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  </div>
+</template>
