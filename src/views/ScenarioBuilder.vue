@@ -31,6 +31,16 @@ interface Step {
   checks: Array<{ name: string; condition: string }>
 }
 
+// API Response interfaces
+interface ScenarioPreviewResponse {
+  script: string
+}
+
+interface ScenarioValidateResponse {
+  valid: boolean
+  warnings?: string[]
+}
+
 const steps = ref<Step[]>([])
 const currentStep = ref<Step>({
   name: '',
@@ -166,7 +176,7 @@ async function previewScenario() {
   try {
     const scenario = mode.value === 'gui' ? buildScenarioFromGui() : JSON.parse(codeContent.value)
 
-    const response = await apiClient.post('/scenarios/preview', scenario)
+    const response = await apiClient.post<ScenarioPreviewResponse>('/scenarios/preview', scenario)
     previewScript.value = response.script
     showPreview.value = true
   } catch (err: any) {
@@ -251,7 +261,7 @@ async function validateScenario() {
   try {
     const scenario = mode.value === 'gui' ? buildScenarioFromGui() : JSON.parse(codeContent.value)
 
-    const response = await apiClient.post('/scenarios/validate', scenario)
+    const response = await apiClient.post<ScenarioValidateResponse>('/scenarios/validate', scenario)
 
     if (response.warnings && response.warnings.length > 0) {
       success.value = `${t('scenarioBuilder.messages.scenarioValidWithWarnings', { count: response.warnings.length })}:\n${response.warnings.join('\n')}`

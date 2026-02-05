@@ -280,11 +280,26 @@ const api = {
     return response.data
   },
 
-  // Generic methods for direct access
-  get: apiClient.get.bind(apiClient),
-  post: apiClient.post.bind(apiClient),
-  put: apiClient.put.bind(apiClient),
-  delete: apiClient.delete.bind(apiClient)
+  // Generic methods for direct access with proper typing
+  async get<T>(url: string, config?: Parameters<typeof apiClient.get>[1]): Promise<T> {
+    const response = await apiClient.get<T>(url, config)
+    return response.data
+  },
+
+  async post<T>(url: string, data?: unknown, config?: Parameters<typeof apiClient.post>[2]): Promise<T> {
+    const response = await apiClient.post<T>(url, data, config)
+    return response.data
+  },
+
+  async put<T>(url: string, data?: unknown, config?: Parameters<typeof apiClient.put>[2]): Promise<T> {
+    const response = await apiClient.put<T>(url, data, config)
+    return response.data
+  },
+
+  async delete<T>(url: string, config?: Parameters<typeof apiClient.delete>[1]): Promise<T> {
+    const response = await apiClient.delete<T>(url, config)
+    return response.data
+  }
 }
 
 // Named export for compatibility (as the typed API wrapper)
